@@ -35,7 +35,7 @@ fn convert(input_data: Vec<u8>) -> Result<Vec<u8>, Error> {
     }
 
     let mut output_data = Vec::new();
-    output.stdout.take(1024).read_to_end(&mut output_data)?;
+    output.stdout.take(1000000).read_to_end(&mut output_data)?;
 
     Ok(output_data)
 }
