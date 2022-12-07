@@ -2,6 +2,7 @@ use actix_web::{web, App, HttpResponse, HttpServer};
 use serde::{Deserialize, Serialize};
 use std::io::{prelude::*, Error, ErrorKind};
 use std::process::{Command, Stdio};
+use std::thread;
 
 #[derive(Deserialize, Serialize)]
 struct AudioData {
@@ -21,21 +22,28 @@ fn convert(input_data: Vec<u8>) -> Result<Vec<u8>, Error> {
         .stdout(Stdio::piped())
         .spawn()?;
 
-    let stdin = cmd
+    let mut stdin = cmd
         .stdin
-        .as_mut()
+        .take()
         .ok_or_else(|| Error::new(ErrorKind::Other, "Failed to open stdin for ffmpeg"))?;
 
-    stdin.write_all(&input_data)?;
+    let mut stdout = cmd
+        .stdout
+        .take()
+        .ok_or_else(|| Error::new(ErrorKind::Other, "Failed to open stdout for ffmpeg"))?;
 
-    let output = cmd.wait_with_output()?;
-
-    if !output.status.success() {
-        return Err(Error::new(ErrorKind::Other, "ffmpeg failed"));
-    }
+    thread::spawn(move || {
+        stdin.write_all(&input_data).unwrap();
+    });
 
     let mut output_data = Vec::new();
-    output.stdout.take(1000000).read_to_end(&mut output_data)?;
+    stdout.read_to_end(&mut output_data).unwrap();
+
+    let exit_status = cmd.wait().unwrap();
+
+    if !exit_status.success() {
+        return Err(Error::new(ErrorKind::Other, "ffmpeg failed"));
+    }
 
     Ok(output_data)
 }
