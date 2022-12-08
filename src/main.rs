@@ -32,14 +32,16 @@ fn convert(input_data: Vec<u8>) -> Result<Vec<u8>, Error> {
         .take()
         .ok_or_else(|| Error::new(ErrorKind::Other, "Failed to open stdout for ffmpeg"))?;
 
-    thread::spawn(move || {
+    let writer = thread::spawn(move || {
         stdin.write_all(&input_data).unwrap();
     });
 
     let mut output_data = Vec::new();
-    stdout.read_to_end(&mut output_data).unwrap();
+    stdout.read_to_end(&mut output_data)?;
 
-    let exit_status = cmd.wait().unwrap();
+    writer.join().unwrap();
+
+    let exit_status = cmd.wait()?;
 
     if !exit_status.success() {
         return Err(Error::new(ErrorKind::Other, "ffmpeg failed"));
